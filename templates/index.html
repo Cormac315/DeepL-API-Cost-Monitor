@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- 左侧面板 - API组列表 -->
+    <div class="col-md-3">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-collection"></i> API组</h5>
+                <button class="btn btn-sm btn-light" onclick="showAddGroupModal()">
+                    <i class="bi bi-plus-circle"></i> 新建组
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="groups-list">
+                    <!-- 显示全部选项 -->
+                    <div class="list-group-item d-flex justify-content-between align-items-center group-item" 
+                         data-group-id=""
+                         onclick="showAllApiKeys()"
+                         style="cursor: pointer;">
+                        <div>
+                            <h6 class="mb-1"><i class="bi bi-grid-3x3-gap"></i> 全部API密钥</h6>
+                            <small class="text-muted">
+                                显示所有组的API密钥
+                            </small>
+                        </div>
+                    </div>
+                    {% for group in groups %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center group-item" 
+                         data-group-id="{{ group.id }}"
+                         onclick="showGroupDetails({{ group.id }})"
+                         style="cursor: pointer;">
+                        <div>
+                            <h6 class="mb-1">{{ group.name }}</h6>
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> 每{{ group.query_interval }}秒
+                                <span class="badge bg-{{ 'success' if group.is_active else 'secondary' }} ms-1">
+                                    {{ '运行中' if group.is_active else '已停止' }}
+                                </span>
+                            </small>
+                        </div>
+                        <div class="btn-group btn-group-sm" onclick="event.stopPropagation();">
+                            <button class="btn btn-outline-warning" onclick="editGroup({{ group.id }})" title="编辑">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-success" onclick="checkGroupNow({{ group.id }})" title="立即检查">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧主内容区 -->
+    <div class="col-md-9">
+        <!-- 总览卡片 -->
+        <div class="row mb-4" id="overview-cards">
+            <div class="col-md-3">
+                <div class="card text-white bg-primary shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title">总API数</h6>
+                                <h3 class="mb-0" id="total-apis">0</h3>
+                            </div>
+                            <i class="bi bi-key-fill fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-success shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title">活跃API</h6>
+                                <h3 class="mb-0" id="active-apis">0</h3>
+                            </div>
+                            <i class="bi bi-check-circle-fill fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-warning shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title">总用量</h6>
+                                <h3 class="mb-0" id="total-usage">0</h3>
+                            </div>
+                            <i class="bi bi-graph-up fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-info shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title">平均使用率</h6>
+                                <h3 class="mb-0" id="avg-usage-rate">0%</h3>
+                            </div>
+                            <i class="bi bi-percent fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API密钥列表 -->
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> API密钥状态</h5>
+                <div>
+                    <button class="btn btn-sm btn-primary" onclick="showAddApiKeyModal()">
+                        <i class="bi bi-plus"></i> 添加API密钥
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="refreshApiList()">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="api-keys-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>类型</th>
+                                <th>所属组</th>
+                                <th>已用/限额</th>
+                                <th>使用率</th>
+                                <th>最后检查</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="api-keys-tbody">
+                            <!-- 动态加载内容 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用量图表 -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> 用量趋势</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="usageChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加API组模态框 -->
+<div class="modal fade" id="addGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新建API组</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addGroupForm">
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">组名称</label>
+                        <input type="text" class="form-control" id="groupName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="queryInterval" class="form-label">查询间隔（秒）</label>
+                        <input type="number" class="form-control" id="queryInterval" value="3600" min="60" required>
+                        <div class="form-text">最小间隔为60秒</div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="groupActive" checked>
+                        <label class="form-check-label" for="groupActive">
+                            启用自动检查
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="createGroup()">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加API密钥模态框 -->
+<div class="modal fade" id="addApiKeyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加API密钥</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addApiKeyForm">
+                    <div class="mb-3">
+                        <label for="addApiKeyName" class="form-label">密钥名称</label>
+                        <input type="text" class="form-control" id="addApiKeyName" placeholder="例如：生产环境密钥">
+                    </div>
+                    <div class="mb-3">
+                        <label for="addApiKeyValue" class="form-label">API密钥</label>
+                        <input type="text" class="form-control" id="addApiKeyValue" placeholder="输入您的DeepL API密钥" required>
+                        <div class="form-text">Free API密钥以:fx结尾</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addApiKeyGroup" class="form-label">所属组</label>
+                        <select class="form-select" id="addApiKeyGroup" required>
+                            {% for group in groups %}
+                            <option value="{{ group.id }}">{{ group.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="addApiKey()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑组模态框 -->
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑API组</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editGroupForm">
+                    <input type="hidden" id="editGroupId">
+                    <div class="mb-3">
+                        <label for="editGroupName" class="form-label">组名称</label>
+                        <input type="text" class="form-control" id="editGroupName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editQueryInterval" class="form-label">查询间隔（秒）</label>
+                        <input type="number" class="form-control" id="editQueryInterval" min="60" required>
+                        <div class="form-text">
+                            最小间隔为60秒。系统会按此间隔自动检查该组所有API的用量。<br>
+                            建议设置：日常使用3600秒（1小时），频繁使用600秒（10分钟）
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editGroupActive">
+                        <label class="form-check-label" for="editGroupActive">
+                            启用自动检查
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" onclick="deleteGroup()">删除组</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateGroup()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API详情模态框 -->
+<div class="modal fade" id="apiDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="min-height: 600px;">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">
+                    <i class="bi bi-key"></i> 
+                    <span id="apiDetailTitle">API密钥详情</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- API基本信息 -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> 基本信息</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">密钥名称</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control text-dark" id="apiKeyName" readonly style="background-color: white;">
+                                        <button class="btn btn-outline-primary" onclick="enableKeyNameEdit()">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success d-none" id="saveKeyNameBtn" onclick="saveKeyName()">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary d-none" id="cancelKeyNameBtn" onclick="cancelKeyNameEdit()">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">API类型</label>
+                                    <div>
+                                        <span id="apiTypeDisplay" class="badge bg-primary fs-6"></span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">创建时间</label>
+                                    <div>
+                                        <span id="apiCreatedAt" class="text-muted"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">API密钥</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace text-dark text-security-disc" id="apiKeyValue" readonly style="background-color: white; font-family: 'Courier New', monospace;" data-show="false">
+                                        <button class="btn btn-outline-secondary" onclick="toggleKeyVisibility()">
+                                            <i class="bi bi-eye" id="keyVisibilityIcon"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary" onclick="copyApiKey()">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">当前用量</label>
+                                    <div class="progress" style="height: 25px;">
+                                        <div id="apiUsageProgress" class="progress-bar" role="progressbar" style="width: 0%">
+                                            0%
+                                        </div>
+                                    </div>
+                                    <small class="text-muted" id="apiUsageText">0 / 0</small>
+                                </div>
+                                <div class="mb-3" id="billingPeriodDiv" style="display: none;">
+                                    <label class="form-label">计费周期</label>
+                                    <div class="alert alert-info p-2">
+                                        <small>
+                                            <i class="bi bi-calendar-event"></i> 开始: <span id="apiBillingStart"></span><br>
+                                            <i class="bi bi-calendar-check"></i> 结束: <span id="apiBillingEnd"></span>
+                                            <span id="apiExpiredBadge" class="badge bg-danger ms-2" style="display: none;">已过期</span>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用量视图切换 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="bi bi-graph-up"></i> 用量统计</h6>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <input type="radio" class="btn-check" name="viewType" id="hourView" checked>
+                                <label class="btn btn-outline-primary" for="hourView" onclick="switchUsageView('hour')">按小时</label>
+                                
+                                <input type="radio" class="btn-check" name="viewType" id="dayView">
+                                <label class="btn btn-outline-primary" for="dayView" onclick="switchUsageView('day')">按天</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="apiUsageChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 页面加载时初始化
+    $(document).ready(function() {
+        loadGroupsCache();  // 先加载组信息
+        loadApiKeysSummary();
+        initializeUsageChart();
+        setInterval(loadApiKeysSummary, 30000); // 每30秒刷新一次
+        
+        // 默认选中"全部API密钥"
+        $('.group-item[data-group-id=""]').addClass('active');
+    });
+</script>
+{% endblock %}
+
