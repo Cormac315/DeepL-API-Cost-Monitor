@@ -1,3 +1,4 @@
 instance.zip
 venv/
 instance/
+__pycache__/
